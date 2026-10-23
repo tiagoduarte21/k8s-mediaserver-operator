@@ -33,7 +33,7 @@ spec:
       #  hostPath:
       #    path: /mnt/share
     ingress:
-      ingressClassName: ""
+      ingressClassName: "traefik"
 
   sonarr:
     enabled: true
