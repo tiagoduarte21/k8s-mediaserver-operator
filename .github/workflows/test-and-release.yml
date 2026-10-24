@@ -56,7 +56,10 @@ jobs:
           cp k8s-mediaserver.yml k8s-mediaserver-operator.yml tests/
           sed -i 's/accessMode: ""/accessMode: ReadWriteOnce/g' tests/k8s-mediaserver.yml
           sed -i 's/pvcStorageClass: ""/pvcStorageClass: standard/g' tests/k8s-mediaserver.yml
-          sed 's|quay.io\/kubealex.*|${{ env.IMAGE_TAG_DEV }}|g' tests/k8s-mediaserver-operator.yml
+          sed -i 's/ingressClassName: "traefik"/ingressClassName: "nginx"/g' tests/k8s-mediaserver.yml
+          sed -i 's/ingressClassName: ""/ingressClassName: "nginx"/g' tests/k8s-mediaserver.yml
+          sed -i "s|quay.io/kubealex/k8s-mediaserver-operator:.*|${{ env.IMAGE_TAG_DEV }}|g" tests/k8s-mediaserver-operator.yml
+          sed -i "s|imagePullPolicy: IfNotPresent|imagePullPolicy: Never|g" tests/k8s-mediaserver-operator.yml
 
       - name: Kind Cluster
         uses: helm/kind-action@v1.4.0
@@ -76,7 +79,7 @@ jobs:
 
       - name: Deploy k8s-mediaserver-operator
         run: |
-          kubectl apply -f k8s-mediaserver-operator.yml
+          kubectl apply -f tests/k8s-mediaserver-operator.yml
           while [[ $(kubectl get pods -n k8s-mediaserver-operator-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') != "True" ]]; do echo "Waiting for operator pod to be ready" && sleep 5; done
 
       - name: Deploy k8s-mediaserver CRD
@@ -89,14 +92,10 @@ jobs:
       - name: Edit hosts file and test apps
         run: |
           sudo echo "127.0.0.1   ${{ env.plex_ingress_host }} ${{ env.ingress_host }}" | sudo tee -a /etc/hosts
-          #TODO Fix #curl -sf http://${{ env.ingress_host }}/bazarr > /dev/null
-          #TODO Fix #curl -sf http://${{ env.ingress_host }}/emby > /dev/null
-          curl -sf http://${{ env.ingress_host }}/jackett > /dev/null
-          curl -sf http://${{ env.ingress_host }}/jellyfin > /dev/null
-          curl -sf http://${{ env.ingress_host }}/lidarr > /dev/null
-          curl -sf http://${{ env.plex_ingress_host }} > /dev/null  # Plex
-          curl -sf http://${{ env.ingress_host }}/prowlarr > /dev/null
-          curl -sf http://${{ env.ingress_host }}/radarr > /dev/null
-          curl -sf http://${{ env.ingress_host }}/sabnzbd > /dev/null
-          curl -sf http://${{ env.ingress_host }}/sonarr > /dev/null
-          curl -sf http://${{ env.ingress_host }}/transmission > /dev/null
+          sleep 10
+          for endpoint in jackett jellyfin lidarr prowlarr radarr sabnzbd sonarr transmission; do
+            echo "Testing endpoint: $endpoint"
+            curl -sSLf --retry 5 --retry-delay 3 --retry-all-errors -m 10 http://${{ env.ingress_host }}/$endpoint > /dev/null
+          done
+          echo "Testing Plex"
+          curl -sSLf --retry 5 --retry-delay 3 --retry-all-errors -m 10 http://${{ env.plex_ingress_host }} > /dev/null
