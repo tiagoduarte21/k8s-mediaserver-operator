@@ -95,6 +95,7 @@ jobs:
           sleep 10
           for endpoint in jackett jellyfin lidarr prowlarr radarr sabnzbd sonarr transmission; do
             echo "Testing endpoint: $endpoint"
+            curl -sSLf --retry 5 --retry-delay 3 --retry-all-errors -m 10 http://${{ env.ingress_host }}/$endpoint/ > /dev/null || \
             curl -sSLf --retry 5 --retry-delay 3 --retry-all-errors -m 10 http://${{ env.ingress_host }}/$endpoint > /dev/null
           done
           echo "Testing Plex"
