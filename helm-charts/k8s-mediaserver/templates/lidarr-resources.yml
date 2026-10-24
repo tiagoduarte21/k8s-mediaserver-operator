@@ -10,7 +10,7 @@ data:
       <UrlBase>{{ .Values.lidarr.ingress.path }}</UrlBase>
     </Config>
   init-lidarr.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /lidarr-config/config.xml ]; then
       cp -n /init-lidarr/config.xml /lidarr-config/config.xml
@@ -51,8 +51,8 @@ spec:
     spec:
       initContainers:
         - name: config-lidarr
-          image: docker.io/ubuntu:groovy
-          command: ["/init-lidarr/init-lidarr.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-lidarr/init-lidarr.sh"]
           volumeMounts:
             - mountPath: /init-lidarr
               name: init-files-lidarr
@@ -74,11 +74,23 @@ spec:
                 name: lidarr-config
           image: "{{ .Values.lidarr.container.image }}:{{ .Values.lidarr.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.lidarr.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.lidarr.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.lidarr.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: lidarr-port
               containerPort: {{ .Values.lidarr.container.port }}
@@ -124,6 +136,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

@@ -9,7 +9,7 @@ data:
       <UrlBase>{{ .Values.sonarrlow.ingress.path }}</UrlBase>
     </Config>
   init-sonarrlow.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /sonarrlow-config/config.xml ]; then
       cp -n /init-sonarrlow/config.xml /sonarrlow-config/config.xml
@@ -50,8 +50,8 @@ spec:
     spec:
       initContainers:
         - name: config-sonarrlow
-          image: docker.io/ubuntu:groovy
-          command: ["/init-sonarrlow/init-sonarrlow.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-sonarrlow/init-sonarrlow.sh"]
           volumeMounts:
             - mountPath: /init-sonarrlow
               name: init-files-sonarrlow
@@ -73,11 +73,23 @@ spec:
                 name: sonarrlow-config
           image: "{{ .Values.sonarrlow.container.image }}:{{ .Values.sonarrlow.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.sonarrlow.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.sonarrlow.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.sonarrlow.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: sonarrlow-port
               containerPort: {{ .Values.sonarrlow.container.port }}
@@ -123,6 +135,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

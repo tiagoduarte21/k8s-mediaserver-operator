@@ -10,7 +10,7 @@ data:
       <UrlBase>{{ .Values.radarrlow.ingress.path }}</UrlBase>
     </Config>
   init-radarrlow.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /radarrlow-config/config.xml ]; then
       cp -n /init-radarrlow/config.xml /radarrlow-config/config.xml
@@ -51,8 +51,8 @@ spec:
     spec:
       initContainers:
         - name: config-radarrlow
-          image: docker.io/ubuntu:groovy
-          command: ["/init-radarrlow/init-radarrlow.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-radarrlow/init-radarrlow.sh"]
           volumeMounts:
             - mountPath: /init-radarrlow
               name: init-files-radarrlow
@@ -74,11 +74,23 @@ spec:
                 name: radarrlow-config
           image: "{{ .Values.radarrlow.container.image }}:{{ .Values.radarrlow.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.radarrlow.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.radarrlow.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.radarrlow.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: radarrlow-port
               containerPort: {{ .Values.radarrlow.container.port }}
@@ -124,6 +136,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

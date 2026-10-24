@@ -10,7 +10,7 @@ data:
       <UrlBase>{{ .Values.emby.ingress.path }}</UrlBase>
     </Config>
   init-emby.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /emby-config/config.xml ]; then
       cp -n /init-emby/config.xml /emby-config/config.xml
@@ -51,8 +51,8 @@ spec:
     spec:
       initContainers:
         - name: config-emby
-          image: docker.io/ubuntu:groovy
-          command: ["/init-emby/init-emby.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-emby/init-emby.sh"]
           volumeMounts:
             - mountPath: /init-emby
               name: init-files-emby
@@ -74,11 +74,23 @@ spec:
                 name: emby-config
           image: "{{ .Values.emby.container.image }}:{{ .Values.emby.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.emby.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.emby.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.emby.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: emby-port
               containerPort: {{ .Values.emby.container.port }}
@@ -136,6 +148,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

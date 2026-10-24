@@ -20,30 +20,34 @@ jobs:
       IMAGE_TAG: ${{ vars.DOCKER_PUSH_REPO }}/${{ vars.DOCKER_PUSH_IMAGE }}:latest
       IMAGE_TAG_DEV: ${{ vars.DOCKER_PUSH_REPO }}/${{ vars.DOCKER_PUSH_IMAGE }}:dev #${{ github.sha }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@v4
         with:
-          version: 'v3.10.0'
+          version: 'v3.16.0'
         id: install-helm
 
       - name: Lint Helm template
         run: helm template helm-charts/k8s-mediaserver
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Docker Login
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_PUSH_USERNAME }}
           password: ${{ secrets.DOCKER_PUSH_TOKEN }}
 
       - name: Docker Build and Push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ env.IMAGE_TAG_DEV }}
           context: .
 
@@ -85,14 +89,14 @@ jobs:
       - name: Edit hosts file and test apps
         run: |
           sudo echo "127.0.0.1   ${{ env.plex_ingress_host }} ${{ env.ingress_host }}" | sudo tee -a /etc/hosts
-          #TODO Fix #wget ${{ env.ingress_host }}/bazarr
-          #TODO Fix #wget ${{ env.ingress_host }}/emby
-          wget ${{ env.ingress_host }}/jackett
-          wget ${{ env.ingress_host }}/jellyfin
-          wget ${{ env.ingress_host }}/lidarr
-          curl ${{ env.plex_ingress_host }}  # Plex
-          wget ${{ env.ingress_host }}/prowlarr
-          wget ${{ env.ingress_host }}/radarr
-          wget ${{ env.ingress_host }}/sabnzbd
-          wget ${{ env.ingress_host }}/sonarr
-          wget ${{ env.ingress_host }}/transmission
+          #TODO Fix #curl -sf http://${{ env.ingress_host }}/bazarr > /dev/null
+          #TODO Fix #curl -sf http://${{ env.ingress_host }}/emby > /dev/null
+          curl -sf http://${{ env.ingress_host }}/jackett > /dev/null
+          curl -sf http://${{ env.ingress_host }}/jellyfin > /dev/null
+          curl -sf http://${{ env.ingress_host }}/lidarr > /dev/null
+          curl -sf http://${{ env.plex_ingress_host }} > /dev/null  # Plex
+          curl -sf http://${{ env.ingress_host }}/prowlarr > /dev/null
+          curl -sf http://${{ env.ingress_host }}/radarr > /dev/null
+          curl -sf http://${{ env.ingress_host }}/sabnzbd > /dev/null
+          curl -sf http://${{ env.ingress_host }}/sonarr > /dev/null
+          curl -sf http://${{ env.ingress_host }}/transmission > /dev/null

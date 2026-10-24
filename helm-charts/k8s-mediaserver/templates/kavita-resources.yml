@@ -1,24 +1,4 @@
 {{ if .Values.kavita.enabled }}
-#---
-### CONFIGMAP
-## INIT-CONTAINER
-#---
-#apiVersion: v1
-#data:
-#  config.xml: |
-#    <Config>
-#      <UrlBase>{{ .Values.kavita.ingress.path }}</UrlBase>
-#    </Config>
-#  init-kavita.sh: |
-#    #!/bin/bash
-#    echo "### Initializing config ###"
-#    if [ ! -f /kavita-config/config.xml ]; then
-#      cp -n /init-kavita/config.xml /kavita-config/config.xml
-#      echo "### No configuration found, intialized with default settings ###"
-#    fi
-#kind: ConfigMap
-#metadata:
-#  name: init-kavita-cm
 ---
 ## APPLICATION
 apiVersion: v1
@@ -49,24 +29,6 @@ spec:
         {{- include "k8s-mediaserver.selectorLabels" . | nindent 8 }}
         app: kavita
     spec:
-#      initContainers:
-#        - name: config-kavita
-#          image: docker.io/ubuntu:groovy
-#          command: ["/init-kavita/init-kavita.sh"]
-#          volumeMounts:
-#            - mountPath: /init-kavita
-#              name: init-files-kavita
-#          {{- if .Values.kavita.volume }}
-#            - name: {{ .Values.kavita.volume.name }}
-#              mountPath: /kavita-config
-#          {{- else }}
-#            - name: mediaserver-volume
-#              mountPath: /kavita-config
-#              subPath: "{{ .Values.general.storage.subPaths.config }}/kavita"
-#          {{- end }}
-#          securityContext:
-#            runAsUser: {{ .Values.general.puid }}
-#            runAsGroup: {{ .Values.general.pgid }}
       containers:
         - name: {{ .Chart.Name }}
           envFrom:
@@ -74,11 +36,23 @@ spec:
                 name: kavita-config
           image: "{{ .Values.kavita.container.image }}:{{ .Values.kavita.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.kavita.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.kavita.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.kavita.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: kavita-port
               containerPort: {{ .Values.kavita.container.port }}
@@ -119,14 +93,11 @@ spec:
           persistentVolumeClaim:
             claimName: {{ .Values.kavita.volume.name }}
         {{- end }}
-#        - name: init-files-kavita
-#          configMap:
-#            defaultMode: 493
-#            name: init-kavita-cm
       {{- with .Values.general.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

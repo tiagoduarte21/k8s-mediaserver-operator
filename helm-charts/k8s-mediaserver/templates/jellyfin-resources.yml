@@ -10,7 +10,7 @@ data:
       <UrlBase>{{ .Values.jellyfin.ingress.path }}</UrlBase>
     </Config>
   init-jellyfin.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /jellyfin-config/config.xml ]; then
       cp -n /init-jellyfin/config.xml /jellyfin-config/config.xml
@@ -51,8 +51,8 @@ spec:
     spec:
       initContainers:
         - name: config-jellyfin
-          image: docker.io/ubuntu:groovy
-          command: ["/init-jellyfin/init-jellyfin.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-jellyfin/init-jellyfin.sh"]
           volumeMounts:
             - mountPath: /init-jellyfin
               name: init-files-jellyfin
@@ -74,11 +74,23 @@ spec:
                 name: jellyfin-config
           image: "{{ .Values.jellyfin.container.image }}:{{ .Values.jellyfin.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.jellyfin.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.jellyfin.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.jellyfin.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: jellyfin-port
               containerPort: {{ .Values.jellyfin.container.port }}
@@ -136,6 +148,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

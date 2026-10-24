@@ -9,7 +9,7 @@ data:
       "BasePathOverride": "{{ .Values.jackett.ingress.path }}"
     }
   init-jackett.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /jackett-config/ServerConfig.json ]; then
       cp -n /init-jackett/ServerConfig.json /jackett-config/ServerConfig.json
@@ -48,8 +48,8 @@ spec:
     spec:
       initContainers:
         - name: config-jackett
-          image: docker.io/ubuntu:groovy
-          command: ["/init-jackett/init-jackett.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-jackett/init-jackett.sh"]
           volumeMounts:
             - mountPath: /init-jackett
               name: init-files-jackett
@@ -71,11 +71,23 @@ spec:
                 name: jackett-config
           image: "{{ .Values.jackett.container.image }}:{{ .Values.jackett.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.jackett.container.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
             tcpSocket:
               port: {{ .Values.jackett.container.port }}
             initialDelaySeconds: 5
             periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.jackett.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: jackett-port
               containerPort: {{ .Values.jackett.container.port }}
@@ -115,6 +127,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

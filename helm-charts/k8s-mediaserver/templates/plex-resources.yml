@@ -49,11 +49,23 @@ spec:
                 name: plex-config
           image: "{{ .Values.plex.container.image }}:{{ .Values.plex.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.plex.container.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
             tcpSocket:
               port: {{ .Values.plex.container.port }}
-            initialDelaySeconds: 20
+            initialDelaySeconds: 10
             periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.plex.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: plex-port
               containerPort: {{ .Values.plex.container.port }}
@@ -93,6 +105,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

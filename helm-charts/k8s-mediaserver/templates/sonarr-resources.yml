@@ -9,7 +9,7 @@ data:
       <UrlBase>{{ .Values.sonarr.ingress.path }}</UrlBase>
     </Config>
   init-sonarr.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /sonarr-config/config.xml ]; then
       cp -n /init-sonarr/config.xml /sonarr-config/config.xml
@@ -50,8 +50,8 @@ spec:
     spec:
       initContainers:
         - name: config-sonarr
-          image: docker.io/ubuntu:groovy
-          command: ["/init-sonarr/init-sonarr.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-sonarr/init-sonarr.sh"]
           volumeMounts:
             - mountPath: /init-sonarr
               name: init-files-sonarr
@@ -73,11 +73,23 @@ spec:
                 name: sonarr-config
           image: "{{ .Values.sonarr.container.image }}:{{ .Values.sonarr.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.sonarr.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.sonarr.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.sonarr.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: sonarr-port
               containerPort: {{ .Values.sonarr.container.port }}
@@ -123,6 +135,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

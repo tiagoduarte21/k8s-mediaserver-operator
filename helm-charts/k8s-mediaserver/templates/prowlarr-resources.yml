@@ -9,7 +9,7 @@ data:
       <UrlBase>{{ .Values.prowlarr.ingress.path }}</UrlBase>
     </Config>
   init-prowlarr.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /prowlarr-config/config.xml ]; then
       cp -n /init-prowlarr/config.xml /prowlarr-config/config.xml
@@ -48,8 +48,8 @@ spec:
     spec:
       initContainers:
         - name: config-prowlarr
-          image: docker.io/ubuntu:groovy
-          command: ["/init-prowlarr/init-prowlarr.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-prowlarr/init-prowlarr.sh"]
           volumeMounts:
             - mountPath: /init-prowlarr
               name: init-files-prowlarr
@@ -71,11 +71,23 @@ spec:
                 name: prowlarr-config
           image: "{{ .Values.prowlarr.container.image }}:{{ .Values.prowlarr.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.prowlarr.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.prowlarr.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.prowlarr.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: prowlarr-port
               containerPort: {{ .Values.prowlarr.container.port }}
@@ -115,6 +127,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

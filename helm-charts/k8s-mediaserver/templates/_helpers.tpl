@@ -43,3 +43,31 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Pod distribution / spread or affinity
+*/}}
+{{- define "k8s-mediaserver.podDistribution" -}}
+{{- if eq .Values.general.podDistribution "cluster" }}
+affinity:
+  podAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app.kubernetes.io/instance
+            operator: In
+            values:
+            - {{ .Release.Name }}
+        topologyKey: "kubernetes.io/hostname"
+      weight: 100
+{{- else if eq .Values.general.podDistribution "spread" }}
+topologySpreadConstraints:
+- maxSkew: 1
+  topologyKey: "kubernetes.io/hostname"
+  whenUnsatisfiable: "ScheduleAnyway"
+  labelSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- end }}

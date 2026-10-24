@@ -1,24 +1,5 @@
 {{ if .Values.overseerr.enabled }}
 ---
-### CONFIGMAP
-## INIT-CONTAINER
-apiVersion: v1
-data:
-  config.xml: |
-    <Config>
-      <UrlBase>{{ .Values.overseerr.ingress.path }}</UrlBase>
-    </Config>
-  init-overseerr.sh: |
-    #!/bin/bash
-    echo "### Initializing config ###"
-    if [ ! -f /overseerr-config/config.xml ]; then
-      cp -n /init-overseerr/config.xml /overseerr-config/config.xml
-      echo "### No configuration found, intialized with default settings ###"
-    fi
-kind: ConfigMap
-metadata:
-  name: init-overseerr-cm
----
 ## APPLICATION
 apiVersion: v1
 kind: ConfigMap
@@ -48,24 +29,6 @@ spec:
         {{- include "k8s-mediaserver.selectorLabels" . | nindent 8 }}
         app: overseerr
     spec:
-      initContainers:
-        - name: config-overseerr
-          image: docker.io/ubuntu:groovy
-          command: ["/init-overseerr/init-overseerr.sh"]
-          volumeMounts:
-            - mountPath: /init-overseerr
-              name: init-files-overseerr
-          {{- if .Values.overseerr.volume }}
-            - name: {{ .Values.overseerr.volume.name }}
-              mountPath: /overseerr-config
-          {{- else }}
-            - name: mediaserver-volume
-              mountPath: /overseerr-config
-              subPath: "{{ .Values.general.storage.subPaths.config }}/overseerr"
-          {{- end }}
-          securityContext:
-            runAsUser: {{ .Values.general.puid }}
-            runAsGroup: {{ .Values.general.pgid }}
       containers:
         - name: {{ .Chart.Name }}
           envFrom:
@@ -73,11 +36,23 @@ spec:
                 name: overseerr-config
           image: "{{ .Values.overseerr.container.image }}:{{ .Values.overseerr.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.overseerr.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.overseerr.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.overseerr.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: overseerr-port
               containerPort: {{ .Values.overseerr.container.port }}
@@ -118,14 +93,11 @@ spec:
           persistentVolumeClaim:
             claimName: {{ .Values.overseerr.volume.name }}
         {{- end }}
-        - name: init-files-overseerr
-          configMap:
-            defaultMode: 493
-            name: init-overseerr-cm
       {{- with .Values.general.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

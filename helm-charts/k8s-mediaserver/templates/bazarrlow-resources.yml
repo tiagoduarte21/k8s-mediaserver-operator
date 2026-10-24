@@ -10,7 +10,7 @@ data:
       <UrlBase>{{ .Values.bazarrlow.ingress.path }}</UrlBase>
     </Config>
   init-bazarrlow.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /bazarrlow-config/config.xml ]; then
       cp -n /init-bazarrlow/config.xml /bazarrlow-config/config.xml
@@ -51,8 +51,8 @@ spec:
     spec:
       initContainers:
         - name: config-bazarrlow
-          image: docker.io/ubuntu:groovy
-          command: ["/init-bazarrlow/init-bazarrlow.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-bazarrlow/init-bazarrlow.sh"]
           volumeMounts:
             - mountPath: /init-bazarrlow
               name: init-files-bazarrlow
@@ -74,11 +74,23 @@ spec:
                 name: bazarrlow-config
           image: "{{ .Values.bazarrlow.container.image }}:{{ .Values.bazarrlow.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: {{ .Values.bazarrlow.container.port }}
             initialDelaySeconds: 10
-            periodSeconds: 20
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.bazarrlow.container.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.bazarrlow.container.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: bazarrlow-port
               containerPort: {{ .Values.bazarrlow.container.port }}
@@ -127,6 +139,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1

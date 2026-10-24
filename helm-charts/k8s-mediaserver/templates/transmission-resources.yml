@@ -5,7 +5,7 @@
 apiVersion: v1
 data:
   init-transmission.sh: |
-    #!/bin/bash
+    #!/bin/sh
     echo "### Initializing config ###"
     if [ ! -f /transmission-config/settings.json ]; then
       cp -n /init-transmission/settings.json /transmission-config/settings.json
@@ -115,8 +115,8 @@ spec:
     spec:
       initContainers:
         - name: config-transmission
-          image: docker.io/ubuntu:groovy
-          command: ["/init-transmission/init-transmission.sh"]
+          image: docker.io/library/busybox:stable-musl
+          command: ["/bin/sh", "/init-transmission/init-transmission.sh"]
           volumeMounts:
             - mountPath: /init-transmission
               name: init-files-transmission
@@ -138,11 +138,23 @@ spec:
                 name: transmission-config
           image: "{{ .Values.transmission.container.image }}:{{ .Values.transmission.container.tag | default .Values.general.image_tag }}"
           imagePullPolicy: Always
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.transmission.container.port.utp }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
             tcpSocket:
               port: {{ .Values.transmission.container.port.utp }}
             initialDelaySeconds: 5
-            periodSeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.transmission.container.port.utp }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           ports:
             - name: trans-port
               containerPort: {{ .Values.transmission.container.port.utp }}
@@ -191,6 +203,7 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "k8s-mediaserver.podDistribution" . | nindent 6 }}
 ---
 ### SERVICES
 apiVersion: v1
